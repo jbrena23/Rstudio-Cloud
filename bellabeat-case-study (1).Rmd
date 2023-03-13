@@ -1,0 +1,281 @@
+---
+title: "Bellabeat"
+author: Jhonattan Brena
+date: 3/12/2023
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+#### Bellabeat is a high-tech manufacturer of health-focused products for women. In order to answer key business questions so that the company can create a new marketing strategy, I will analyze existing data on the usage of smart wearables and compare my findings with the company's products.
+
+# Ask: 
+#### 1. What are some trends in smart device usage?
+#### 2. How could these trends apply to Bellabeat customers?
+#### 3. How could these trends help influence Bellabeat marketing            strategy?
+
+# Prepare:
+#### The [data](https://www.kaggle.com/datasets/arashnic/fitbit) used in this analysis was collected via a distributed survey by Amazon Mechanical Turk between March 12, 2016 and May 12, 2016. The data is licensed under CCO: Public Domain and was uploaded to Kaggle by user [Mobius](https://www.kaggle.com/arashnic). The data was collected from thirty Fitbit users and includes daily, and in some cases hourly or by-the-minute, information on activity levels, sleep, heart rate, weight, calories burned, and steps taken. The survey respondents wore a variety of Fitbit trackers.
+#### A few issues exist using this data for our purposes. First, there are only 30 participants, so the sample size is very small. Second, there is no demographic information provided. While this protects the identity of the participants, Bellabeat's focus is on women's health and we do not know the gender identity of any of the participants. Third, the data is seven years old so there could be changes in the way consumers are using smart wearables in that time. 
+
+#### For this analysis I am using RStudio. The data is too large for spreadsheets and I am hoping to practice my skills in R during this case study.
+
+# Process
+#### Preparing the environment by loading necessary packages.
+```{r}
+install.packages("tidyverse")
+library(tidyverse)
+
+install.packages("here")
+library(here)
+
+install.packages("janitor")
+library(janitor)
+
+install.packages("skimr")
+library(skimr)
+
+install.packages("dplyr")
+library(dplyr)
+```
+
+
+#### Creating data.frames by reading in CSV files from our dataset.
+
+```{r}
+daily_activity <- read.csv("dailyActivity_merged.csv")
+
+daily_steps <- read.csv("dailySteps_merged.csv")
+
+sleep_day <- read.csv("sleepDay_merged.csv")
+
+daily_calories <- read.csv("dailyCalories_merged.csv")
+
+daily_intensities <- read.csv("dailyIntensities_merged.csv")
+
+daily_steps <- read.csv("dailySteps_merged.csv")
+
+weight_log <- read.csv("weightLogInfo_merged.csv")
+
+hourly_intensities <- read.csv("hourlyIntensities_merged.csv")
+
+hourly_steps <- read.csv("hourlySteps_merged.csv")
+
+hourly_calories <- read.csv("hourlyCalories_merged.csv")
+
+heartrate <- read.csv("heartrate_seconds_merged.csv")
+
+```
+
+#### I used the glimpse() function to quickly assess each data.frame. I discovered each data.frame contains an Id column. 
+
+```{r}
+glimpse(daily_activity)
+glimpse(daily_steps)
+glimpse(daily_intensities)
+glimpse(daily_calories)
+glimpse(sleep_day)
+glimpse(heartrate)
+glimpse(weight_log)
+```
+
+
+#### Using the n_distinct() function, I determined that activity, steps, calories, and intensities data contain 33 unique Ids (100% of participants). Sleep data contains 24 unique Ids (72.7% of participants), heart rate data contains 14 Ids (42.4% of participants), and weight data contains only 8 unique Ids (24.2% of participants). Since the heart rate and weight data included so few participants (less than 50% and 25%, respectively) I did not use these data.frames in my analysis. 
+
+```{r}
+n_distinct(daily_activity$Id)
+n_distinct(daily_steps$Id)
+n_distinct(daily_intensities$Id)
+n_distinct(daily_calories$Id)
+n_distinct(sleep_day$Id)
+n_distinct(heartrate$Id)
+n_distinct(weight_log$Id)
+
+
+```
+#### I also discovered that the dates were in character format. I used the as.Date() function to convert them to Date type.
+
+```{r}
+daily_activity$ActivityDate <- as.Date(daily_activity$ActivityDate, format="%m/%d/%Y")
+daily_steps$ActivityDay <- as.Date(daily_steps$ActivityDay, format="%m/%d/%Y")
+daily_intensities$ActivityDay <- as.Date(daily_intensities$ActivityDay, format="%m/%d/%Y")
+daily_calories$ActivityDay <- as.Date(daily_calories$ActivityDay, format="%m/%d/%Y")
+sleep_day$SleepDay <- as.Date(sleep_day$SleepDay, format="%m/%d/%Y")
+```
+
+
+#### To confirm the dates of the data collected, I used min() and max() with each data.frame. Although the dates included in the metadata indicated March 12, 2016 through May 12, 2016 for a total of 61 days, the data itself indicates it was collected between April 12, 2016 & May 12, 2016, only 30 days.
+
+```{r}
+min(daily_activity$ActivityDate)
+min(daily_steps$ActivityDay)
+min(daily_calories$ActivityDay)
+min(daily_intensities$ActivityDay)
+min(sleep_day$SleepDay)
+
+max(daily_activity$ActivityDate)
+max(daily_steps$ActivityDay)
+max(daily_calories$ActivityDay)
+max(daily_intensities$ActivityDay)
+max(sleep_day$SleepDay)
+
+```
+#### To separate the date and time in the hourly_intensities data.frame, and change the time format from 12hr to 24hr, I created a new data.frame--hourly_intensities_24hr--using the mutate() and extract() functions. 
+
+```{r}
+hourly_int_mod <- hourly_intensities %>%
+mutate(ActivityHour = mdy_hms(ActivityHour), 
+day = day(ActivityHour),
+month = month(ActivityHour), 
+year = year(ActivityHour),
+dayofweek = wday(ActivityHour),
+minute = minute(ActivityHour),
+second = second(ActivityHour))
+
+hourly_intensities_24hr <- extract(hourly_int_mod, ActivityHour, into = c("date", "time"), "^(\\S+)\\s+(.*)")
+```
+
+#### I did the same thing with the hourly_steps and hourly_calories data.frames.
+
+```{r}
+hourly_steps_mod <- hourly_steps %>%
+mutate(ActivityHour = mdy_hms(ActivityHour), 
+day = day(ActivityHour),
+month = month(ActivityHour), 
+year = year(ActivityHour),
+dayofweek = wday(ActivityHour),
+minute = minute(ActivityHour),
+second = second(ActivityHour))
+
+hourly_steps_24hr <- extract(hourly_steps_mod, ActivityHour, into = c("date", "time"), "^(\\S+)\\s+(.*)")
+
+hourly_cal_mod <- hourly_calories %>%
+  mutate(ActivityHour = mdy_hms(ActivityHour), 
+         day = day(ActivityHour),
+         month = month(ActivityHour), 
+         year = year(ActivityHour),
+         dayofweek = wday(ActivityHour),
+         minute = minute(ActivityHour),
+         second = second(ActivityHour))
+
+hourly_calories_24hr <- extract(hourly_cal_mod, ActivityHour, into = c("date", "time"), "^(\\S+)\\s+(.*)")
+
+```
+
+# Analyze
+
+#### To compare daily sleep and daily activity, the sleep_day and daily_activity data.frames were combined. They shared two columns--Id and SleepDay/ActivityDate--and were combined using both columns so that Ids and dates would match up.
+
+```{r}
+sleep_activity <- merge(x=sleep_day,y=daily_activity, by.x=c("Id","SleepDay"), by.y=c("Id","ActivityDate"))
+```
+
+#### I wanted to see if there was a correlation between the number of steps a user took and the amount they slept. Using ggplot to create a scatterplot there doesn't seem to be a correlation, but there does appear to be a cluster of users who average around 10k steps and get between 400-500 minutes (6.3-8.3 hrs) of sleep each day.  
+
+```{r}
+ggplot(data=sleep_activity, aes(x=TotalMinutesAsleep, y=TotalSteps))+geom_point(color='magenta4')+
+  labs(title='Total Steps vs. Total Minutes Asleep')
+```
+
+#### To compare daily sleep and daily activity intensity levels, the sleep_day and daily_intensities data.frames were combined. They shared two columns--Id and SleepDay/ActivityDay--and were combined using both columns so that Ids and dates would match up.
+
+```{r}
+sleep_intensities <-merge(x=sleep_day,y=daily_intensities, by.x=c("Id","SleepDay"), by.y=c("Id","ActivityDay"))
+```
+
+#### I wanted to see if there was a correlation between very active and fairly active minutes a user had and the amount they slept. There doesn't seem to be much of a correlation and most users got less than 25 minutes of either Very Active or Fairly Active Minutes. 
+
+```{r}
+ggplot(data=sleep_intensities, aes(x=TotalMinutesAsleep, y=VeryActiveMinutes))+geom_point(color='hotpink')+
+  labs(title='Very Active Minutes vs. Total Minutes Asleep')
+
+ggplot(data=sleep_intensities, aes(x=TotalMinutesAsleep, y=FairlyActiveMinutes))+geom_point(color='salmon')+
+  labs(title='Fairly Active Minutes vs. Total Minutes Asleep')
+```
+
+#### To see when survey participants were most active throughout the day, I created three bar charts--one using Average Intensity from the hourly_intensities_24hr data.frame, one using Step Total from the hourly_steps_24hr data.frame, and one using Calories from the hourly_calories_24hr data.frame. As expected, the charts were very similar. They all show that the participants were most active later in the day, between the hours of 5pm and 8pm. At 8pm, there is a fairly significant drop off in steps and activity intensity level. 
+
+#### Between 5am and 8am, there is a very steady and rather large increase in steps and activity intensity with each hour. 
+
+#### All three graphs show that there is a lull in steps and activity intensity, and thus calories burned, in the 3pm hour. 
+
+```{r}
+ggplot(hourly_intensities_24hr, aes(x=time, y=AverageIntensity)) +geom_col(color='blue')+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title='Average Activity Intensity Throughout The Day')
+
+ggplot(hourly_steps_24hr, aes(x=time, y=StepTotal))+geom_col(color='green')+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title='Steps Taken Throughout The Day')
+
+ggplot(hourly_calories_24hr, aes(x=time, y=Calories))+geom_col(color='red',)+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(title='Calories Burned Throughout The Day')
+```
+
+#### I then wanted to see if there was a difference in activity between the days of the week. I had to turn the day of the week from a number to a name of the day of the week in our three data.frames that include this information. I also wanted to make sure the days of the week would appear in order from Sunday-Saturday when using ggplot2. When taking into account all users' activity over a thirty day period, Sunday appears to be the least active day and Tuesday the most active. 
+
+```{r}
+hourly_intensities_24hr$dayofweek <- recode(hourly_intensities_24hr$dayofweek, 
+                                         "1"="Sunday",
+                                         "2"="Monday",
+                                         "3"="Tuesday",
+                                         "4"="Wednesday",
+                                         "5"="Thursday",
+                                         "6"="Friday",
+                                         "7"="Saturday")
+
+hourly_steps_24hr$dayofweek <- recode(hourly_steps_24hr$dayofweek, 
+                                         "1"="Sunday",
+                                         "2"="Monday",
+                                         "3"="Tuesday",
+                                         "4"="Wednesday",
+                                         "5"="Thursday",
+                                         "6"="Friday",
+                                         "7"="Saturday")
+
+hourly_calories_24hr$dayofweek <- recode(hourly_calories_24hr$dayofweek, 
+                        "1"="Sunday",
+                        "2"="Monday",
+                        "3"="Tuesday",
+                        "4"="Wednesday",
+                        "5"="Thursday",
+                        "6"="Friday",
+                        "7"="Saturday")
+
+hourly_intensities_24hr$dayofweek <- factor(hourly_intensities_24hr$dayofweek, c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")) 
+hourly_steps_24hr$dayofweek <- factor(hourly_steps_24hr$dayofweek, c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")) 
+hourly_calories_24hr$dayofweek <- factor(hourly_calories_24hr$dayofweek, c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")) 
+
+```
+
+```{r}
+ggplot(data=hourly_intensities_24hr, aes(x=dayofweek, y=AverageIntensity))+geom_col(color='blue')+
+  labs(title='Average Activity Intensity by Day of the Week')
+
+ggplot(data=hourly_steps_24hr, aes(x=dayofweek, y=StepTotal))+geom_col(color='green')+
+  labs(title='Step Total by Day of the Week')
+
+ggplot(data=hourly_calories_24hr, aes(x=dayofweek, y=Calories))+geom_col(color='red')+
+  labs(title='Calories Burned by Day of the Week')
+```
+
+# Share
+### Some key takeaways from these findings:
+#### Less than 50% of participants tracked their heart rate. This is likely because the participants wore a variety of different Fitbit trackers, and some of those may not have tracked heart rate 24/7. According to their [website](https://www.fitbit.com/global/us/technology/heart-rate), "Fitbit launched the first automatic, continuous wrist-based heart rate technology in 2014 with PurePulse". Some of the trackers used may have been purchased prior to 2014, and others may have been models that, even after the launch of PurePulse, were not equipped with it.
+#### Less than 25% of participants tracked their weight. Unlike steps, activity levels, sleep, and heart rate, weight is not tracked automatically and needs to be manually entered by the user. The only exception to this is if you own the Fitbit Aria, a scale that will automatically update your weight on your tracker when you use it. 
+#### Graphs show number of steps, average activity intensity, and calories burned are correlated.
+#### Sunday is the least active day of the week.
+#### Tuesday is the most active day of the week.
+#### Mornings (before typical 9-5 working hours) are less active than evenings (after typical 9-5 working hours).
+#### Evenings (5am-8pm) are most active time of day.
+#### There is a lull in activity mid-afternoon, specifically in the 3:00pm hour.
+
+### What this means for Bellabeat
+#### Bellabeat's most popular tracker, the Ivy, is a bracelet that can be worn 24/7 and it tracks steps, heart rate, active minutes, calories burned, and respiratory rate. It takes this information, and information that was manually entered, like menstrual cycle, water intake, and weight, and provides a 'Readiness Score' and 'Wellness Score'.
+#### According to the [Cleveland Clinic](http://my.clevelandclinic.org/health/diagnostics/17402-pulse--heart-rate), "your heart rate is one of the simplest and easiest ways for you to keep tabs on your own health". Since the Ivy can track heart rate 24/7, this is a great selling point and one that should be emphasized in marketing. 
+#### As we saw with weight tracking in the Fitbit data, items that need to be manually entered will often go unused. Bellabeat already offers Spring, a water bottle that will automatically track how much water you drink. I think the company could benefit from offering a scale that would sync up with the tracker so that weight was automatically tracked as well. 
+#### While the Fitbit data showed definite trends in most active days and times of day across thirty days for the thirty-three participants in this survey, everyone is different and having a tracker that will learn each user's individual habits is useful. For example, if the user typically works out in the morning and they did not, having a reminder midday to get their workout in could be the boost they need to get it done. Or if the user typically hits 5k steps by lunchtime but they have been relatively stationary that morning, they may just need an app notification as a reminder to get up and move. Bellabeat could emphasize that the tracker will work with you to determine healthy habits and help you stick with them. 
+
+
